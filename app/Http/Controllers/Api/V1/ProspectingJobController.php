@@ -5,13 +5,48 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProspectingJobRequest;
 use App\Models\ProspectingJob;
+use App\Services\GeocodingService;
+use Exception;
 use Illuminate\Http\Request;
 
 class ProspectingJobController extends Controller
 {
+    protected  GeocodingService $geocodingService;
+
+    public function __construct(GeocodingService $geocodingService)
+    {
+        $this->geocodingService = $geocodingService;
+    }
+
     public function store(StoreProspectingJobRequest $request)
     {
         $user = $request->user();
+
+        if (!$user) {
+            return response()->json(['message'  => 'Unauthenticated.'], 401);
+        }
+
+        $lat = $request->center_lat;
+        $lng = $request->center_lng;
+        $addressText = $request->address_text;
+
+        if (empty($lat) || empty($lng)) {
+            if (empty($addressText)) {
+                return response()->json([
+                    'message'   => 'Validasi gagal. Anda harus menyertakan koordinat Map Picker atau teks alamat.'
+                ], 422);
+            }
+
+            try {
+                $coordinates = $this->geocodingService->geocodeAddress($addressText);
+                $lat = $coordinates['lat'];
+                $lng = $coordinates['lng'];
+            } catch (Exception $e) {
+                return response()->json([
+                    'message'   => $e->getMessage()
+                ], 422);
+            }
+        }
 
         $job = ProspectingJob::create([
             'tenant_id'           => $user->tenant_id,
@@ -19,8 +54,8 @@ class ProspectingJobController extends Controller
             'product_name'        => $request->product_name,
             'product_description' => $request->product_description,
             'product_usp'         => $request->product_usp,
-            'center_lat'          => $request->center_lat,
-            'center_lng'          => $request->center_lng,
+            'center_lat'          => $lat,
+            'center_lng'          => $lng,
             'address_text'        => $request->address_text,
             'radius_meters'       => $request->radius_meters,
             'target_keywords'     => $request->target_keywords,

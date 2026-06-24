@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'locationiq' => [
+        'api_key' => env('LOCATIONIQ_API_KEY'),
+    ],
+
 ];
