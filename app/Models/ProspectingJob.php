@@ -61,4 +61,9 @@ class ProspectingJob extends Model
     {
         return $this->hasMany(JobEvent::class, 'job_id');
     }
+
+    public function results()
+    {
+        return $this->hasMany(ProspectingJobResult::class);
+    }
 }

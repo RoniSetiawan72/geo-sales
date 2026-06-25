@@ -12,4 +12,5 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/prospecting-jobs', [ProspectingJobController::class, 'store']);
+    Route::get('/prospecting-jobs/{id}', [ProspectingJobController::class, 'show']);
 });

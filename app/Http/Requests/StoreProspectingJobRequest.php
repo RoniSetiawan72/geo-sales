@@ -26,7 +26,8 @@ class StoreProspectingJobRequest extends FormRequest
         $user = $this->user();
         $plan = $user?->tenant?->subscriptionPlan;
 
-        $maxRadius = $plan?->max_radius_km ? $plan->max_radius_km * 1000 : 5000;
+        $maxRadiusKm = $plan?->max_radius_km ?? 5;
+        $maxRadiusMeters = $maxRadiusKm * 1000;
 
         return [
             'product_name'        => ['required', 'string', 'max:255'],
@@ -35,17 +36,27 @@ class StoreProspectingJobRequest extends FormRequest
             'center_lat'          => ['nullable', 'numeric', 'between:-90,90'],
             'center_lng'          => ['nullable', 'numeric', 'between:-180,180'],
             'address_text'        => ['nullable', 'string'],
-            'radius_meters'       => ['required', 'integer', 'min:1', "max:{$maxRadius}"],
             'target_keywords'     => ['required', 'array', 'min:1'],
             'target_keywords.*'   => ['string', 'max:50'],
+
+            'radius_meters'       => [
+                'required',
+                'integer',
+                'min:1',
+                "max:{$maxRadiusMeters}"
+            ],
         ];
     }
 
     #[Override]
     public function messages()
     {
+        $user = $this->user();
+        $planName = $user?->tenant?->subscriptionPlan?->name ?? 'Starter';
+
         return [
-            'radius_meters.max' => 'Radius maksimal untuk paket Anda adalah :max meter.',
+            'radius_meters.max' => "Radius pencarian melebihi batas maksimum untuk paket {$planName} Anda.",
+            'radius_meters.min' => "Radius pencarian minimal adalah 1 meter.",
         ];
     }
 }
