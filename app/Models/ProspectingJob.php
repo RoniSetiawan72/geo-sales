@@ -24,6 +24,7 @@ class ProspectingJob extends Model
         'total_extracted',
         'total_scored',
         'credits_used',
+        'ai_analysis',
         'error_message',
         'started_at',
         'completed_at',
@@ -31,6 +32,7 @@ class ProspectingJob extends Model
 
     protected $casts = [
         'target_keywords' => PostgresArrayCast::class,
+        'ai_analysis'     => 'array',
         'center_lat' => 'decimal:8',
         'center_lng' => 'decimal:8',
         'started_at' => 'datetime',

@@ -36,7 +36,11 @@ class ProcessProspectingJob implements ShouldQueue
             return;
         }
 
-        $prospectingJob->update(['status'   => 'processing']);
+        // Set status ke processing dan catat waktu mulai
+        $prospectingJob->update([
+            'status' => 'processing',
+            'started_at' => now()
+        ]);
 
         try {
             $mockedPlaces = [
@@ -60,6 +64,8 @@ class ProcessProspectingJob implements ShouldQueue
                 ]
             ];
 
+            $prospectingJob->results()->delete();
+
             foreach ($mockedPlaces as $place) {
                 $prospectingJob->results()->create([
                     'business_name' => $place['name'],
@@ -74,12 +80,78 @@ class ProcessProspectingJob implements ShouldQueue
                 ]);
             }
 
+            $collectedResults = $prospectingJob->results()->get();
+
+            $payloadAI = [
+                'my_product' => [
+                    'name'        => $prospectingJob->product_name,
+                    'description' => $prospectingJob->product_description,
+                    'usp'         => $prospectingJob->product_usp
+                ],
+                'target_competitors' => $collectedResults->map(function ($item) {
+                    return [
+                        'name'         => $item->business_name,
+                        'rating'       => $item->rating,
+                        'review_count' => $item->review_count,
+                        'address'      => $item->address_text
+                    ];
+                })->toArray(),
+            ];
+
+            $isTestingWithoutQuota = true;
+
+            if ($isTestingWithoutQuota) {
+                $mockedAiContent = json_encode([
+                    'market_overview' => "Analisis area lokal menunjukkan tingkat kompetisi tinggi pada kata kunci " . implode(', ', $prospectingJob->target_keywords),
+                    'competitor_weakness' => "Sebagian besar kompetitor belum mengoptimalkan strategi branding siap minum (Ready to Drink).",
+                    'positioning_strategy' => "Gunakan USP produk: '{$prospectingJob->product_usp}' untuk penetrasi langsung ke market retail.",
+                    'sales_pitch_template' => "Halo, kami menawarkan produk {$prospectingJob->product_name} yang sangat cocok untuk segmentasi bisnis Anda..."
+                ]);
+
+                $prospectingJob->update([
+                    'status'          => 'completed',
+                    'credits_used'    => count($mockedPlaces),
+                    'ai_analysis'     => json_decode($mockedAiContent, true),
+                    'completed_at'    => now()
+                ]);
+
+            } else {
+                $aiResponse = \Illuminate\Support\Facades\Http::withToken(config('services.openai.api_key'))
+                    ->timeout(30)
+                    ->post('https://api.openai.com/v1/chat/completions', [
+                        'model' => config('services.openai.model'),
+                        'response_format' => ['type' => 'json_object'],
+                        'messages' => [
+                            [
+                                'role'    => 'system',
+                                'content' => 'Anda adalah AI Sales Strategist Expert. Analisis data produk user dibandingkan dengan data bisnis kompetitor di area tersebut. Berikan rekomendasi taktik penetrasi pasar, kelemahan kompetitor yang bisa dieksploitasi, dan template pesan pitching/penjualan yang spesifik dalam format JSON terstruktur.'
+                            ],
+                            [
+                                'role'    => 'user',
+                                'content' => json_encode($payloadAI)
+                            ]
+                        ]
+                    ]);
+
+                if ($aiResponse->successful()) {
+                    $aiContent = $aiResponse->json()['choices'][0]['message']['content'];
+
+                    $prospectingJob->update([
+                        'status'       => 'completed',
+                        'credits_used' => count($mockedPlaces),
+                        'ai_analysis'  => json_decode($aiContent, true),
+                        'completed_at' => now()
+                    ]);
+                } else {
+                    throw new \Exception('AI Engine gagal merespons dengan sukses: ' . $aiResponse->body());
+                }
+            }
+
+        } catch (\Exception $e) {
             $prospectingJob->update([
-                'status'    => 'completed',
-                'credit_used'   => count($mockedPlaces)
+                'status'        => 'failed',
+                'error_message' => $e->getMessage()
             ]);
-        } catch (Exception $e) {
-            $prospectingJob->update(['status'    => 'failed']);
             throw $e;
         }
     }

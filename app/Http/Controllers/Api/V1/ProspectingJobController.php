@@ -74,7 +74,6 @@ class ProspectingJobController extends Controller
             'review_count'  => 120,
             'lat'           => $lat,
             'lng'           => $lng,
-            // Mengonversi koordinat lat & lng ke format PostGIS Point
             'geom'          => DB::raw("ST_GeomFromText('POINT({$lng} {$lat})', 4326)")
         ]);
 
@@ -95,11 +94,6 @@ class ProspectingJobController extends Controller
                 'message'   => 'Prospecting job tidak ditemukan.'
             ], 404);
         }
-
-        // $user = auth()->user();
-        // if ($job->tenant_id !== $user->tenant_id) {
-        //     return response()->json(['message' => 'Forbidden.'], 403);
-        // }
 
         return response()->json([
             'message' => 'Data prospecting job berhasil diambil.',
